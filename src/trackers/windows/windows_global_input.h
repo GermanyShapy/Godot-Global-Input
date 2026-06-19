@@ -147,7 +147,7 @@ public:
                 if (!modifiers_match(key_ev)) continue; 
                 if (key_state[key_ev->get_keycode()]) return true;
             } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-                if (!modifiers_match(key_ev)) continue; 
+                if (!modifiers_match(mouse_ev)) continue; 
                 if (mouse_state[mouse_ev->get_button_index()]) return true;
             }
         }
@@ -172,7 +172,7 @@ public:
                     return true;
             } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
                 auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
-                if (!modifiers_match(key_ev)) continue; 
+                if (!modifiers_match(mouse_ev)) continue; 
                 if (it != mouse_just_pressed_frame.end() &&
                     it->second != 0 &&
                     (current_frame - it->second) <= JUST_BUFFER_FRAMES)
@@ -197,7 +197,7 @@ public:
                 if (it != key_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
             } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
                 auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
-                if (!modifiers_match(key_ev)) continue; 
+                if (!modifiers_match(mouse_ev)) continue; 
                 if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
             }
         }
