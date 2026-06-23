@@ -55,20 +55,20 @@ public:
     virtual void poll_data() = 0;
     virtual void handle_input(const Ref<InputEvent> &event) = 0;
 
-    bool modifiers_match(InputEvent *key_ev){
+    bool modifiers_match(InputEvent *ev){
         bool ev_shift = false;
         bool ev_ctrl  = false;
         bool ev_alt   = false;
         bool ev_meta  = false;
         int  ev_keycode = 0;
 
-        if (InputEventKey *key_ev = Object::cast_to<InputEventKey>(key_ev)) {
+        if (InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev)) {
             ev_shift   = key_ev->is_shift_pressed();
             ev_ctrl    = key_ev->is_ctrl_pressed();
             ev_alt     = key_ev->is_alt_pressed();
             ev_meta    = key_ev->is_meta_pressed();
             ev_keycode = key_ev->get_keycode();
-        } else if (InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(key_ev)) {
+        } else if (InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev)) {
             ev_shift = mouse_ev->is_shift_pressed();
             ev_ctrl  = mouse_ev->is_ctrl_pressed();
             ev_alt   = mouse_ev->is_alt_pressed();
