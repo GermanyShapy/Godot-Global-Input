@@ -285,40 +285,6 @@ public:
         return dict;
     }
 
-    // Same namespace rule as the Windows tracker: key_state is keyed by Godot
-    // keycodes (the values of key_map), not by the raw PH_KEY_* codes. Both the
-    // left and the right variant map onto the same Godot keycode, so one lookup
-    // per modifier is enough. (Previously these always returned false, which
-    // silently disabled modifier matching on Linux.)
-
-    bool is_alt_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(KEY_ALT);
-        #endif
-        return false;
-    }
-
-    bool is_ctrl_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(KEY_CTRL);
-        #endif
-        return false;
-    }
-
-    bool is_shift_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(KEY_SHIFT);
-        #endif
-        return false;
-    }
-
-    bool is_meta_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(KEY_META);
-        #endif
-        return false;
-    }
-
     // Misc
     
     void handle_input(const Ref<InputEvent> &event) override {}

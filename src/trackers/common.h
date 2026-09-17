@@ -47,10 +47,19 @@ public:
     virtual Dictionary get_keys_just_pressed_detailed() = 0;
     virtual Dictionary get_keys_just_released_detailed() = 0;
 
-    virtual bool is_alt_pressed() = 0;
-    virtual bool is_ctrl_pressed() = 0;
-    virtual bool is_shift_pressed() = 0;
-    virtual bool is_meta_pressed() = 0;
+    // Modifier state comes from the per-frame snapshot built in update_frame_state(),
+    // so an event check costs no hash lookups and cannot tear mid-check.
+    //
+    // Every platform keys key_state / frame_keys by *Godot* keycode and folds the
+    // left/right variants of a modifier onto that single keycode, so one lookup per
+    // modifier covers every keyboard. Never query these with raw platform constants:
+    // on Windows VK_LWIN is 0x5B == 91 == KEY_BRACKETLEFT and VK_RWIN is 0x5C == 92
+    // == KEY_BACKSLASH, which silently aliases real keys and makes '[' and '\'
+    // report Meta as held.
+    virtual bool is_alt_pressed() { return frame_alt; }
+    virtual bool is_ctrl_pressed() { return frame_ctrl; }
+    virtual bool is_shift_pressed() { return frame_shift; }
+    virtual bool is_meta_pressed() { return frame_meta; }
 
     virtual void poll_data() = 0;
     virtual void handle_input(const Ref<InputEvent> &event) = 0;
@@ -154,6 +163,13 @@ public:
         for (const auto &[button, down] : mouse_state) {
             if (down) frame_mouse[button] = true;
         }
+
+        // Snapshot the modifier state once per frame instead of looking it up again
+        // for every event of every action.
+        frame_ctrl = frame_keys.count(KEY_CTRL) > 0;
+        frame_shift = frame_keys.count(KEY_SHIFT) > 0;
+        frame_alt = frame_keys.count(KEY_ALT) > 0;
+        frame_meta = frame_keys.count(KEY_META) > 0;
 
         keys_just_pressed.clear();
         keys_just_released.clear();
@@ -324,6 +340,11 @@ public:
     std::unordered_map<int, bool> frame_mouse;
     std::unordered_map<int, bool> frame_keys_prev;
     std::unordered_map<int, bool> frame_mouse_prev;
+
+    bool frame_ctrl = false;
+    bool frame_shift = false;
+    bool frame_alt = false;
+    bool frame_meta = false;
 
     std::unordered_map<int, bool> keys_just_pressed;
     std::unordered_map<int, bool> keys_just_released;

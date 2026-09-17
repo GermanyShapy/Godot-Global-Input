@@ -161,7 +161,9 @@ Dictionary GlobalInput::get_keys_pressed_detailed() { ensure_frame_state(); retu
 Dictionary GlobalInput::get_keys_just_pressed_detailed() { ensure_frame_state(); return backend.is_valid() ? backend->get_keys_just_pressed_detailed() : Dictionary(); }
 Dictionary GlobalInput::get_keys_just_released_detailed() { ensure_frame_state(); return backend.is_valid() ? backend->get_keys_just_released_detailed() : Dictionary(); }
 
-bool GlobalInput::is_shift_pressed() { return backend.is_valid() && backend->is_shift_pressed(); }
-bool GlobalInput::is_ctrl_pressed() { return backend.is_valid() && backend->is_ctrl_pressed(); }
-bool GlobalInput::is_alt_pressed() { return backend.is_valid() && backend->is_alt_pressed(); }
-bool GlobalInput::is_meta_pressed() { return backend.is_valid() && backend->is_meta_pressed(); }
+// Modifier state is served from the frame snapshot, so it needs the same lazy
+// frame advance as the other is_* entry points.
+bool GlobalInput::is_shift_pressed() { ensure_frame_state(); return backend.is_valid() && backend->is_shift_pressed(); }
+bool GlobalInput::is_ctrl_pressed() { ensure_frame_state(); return backend.is_valid() && backend->is_ctrl_pressed(); }
+bool GlobalInput::is_alt_pressed() { ensure_frame_state(); return backend.is_valid() && backend->is_alt_pressed(); }
+bool GlobalInput::is_meta_pressed() { ensure_frame_state(); return backend.is_valid() && backend->is_meta_pressed(); }

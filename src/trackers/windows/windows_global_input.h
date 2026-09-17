@@ -164,45 +164,6 @@ public:
         return keys_to_detailed(keys_just_released);
     }
 
-    // Modifiers
-
-    // NOTE: key_state / frame_keys are keyed by *Godot* keycodes (the values of
-    // key_map), never by raw Windows VK codes. Mixing the two namespaces is not
-    // just useless but actively harmful: VK_LWIN is 0x5B == 91 == KEY_BRACKETLEFT
-    // and VK_RWIN is 0x5C == 92 == KEY_BACKSLASH, so pressing '[' used to make
-    // the plugin believe Meta was held and broke every modifier match for it.
-    // Both left and right variants of a modifier collapse onto the same Godot
-    // keycode in key_map, so a single Godot-code lookup covers all of them.
-
-    bool is_alt_pressed() override{
-        #ifdef _WIN32
-        return is_key_pressed(KEY_ALT);
-        #endif
-        return false;
-    }
-
-    bool is_ctrl_pressed() override{
-        #ifdef _WIN32
-        return is_key_pressed(KEY_CTRL);
-        #endif
-        return false;
-
-    }
-
-    bool is_shift_pressed() override{
-        #ifdef _WIN32
-        return is_key_pressed(KEY_SHIFT);
-        #endif
-        return false;
-    }
-
-    bool is_meta_pressed() override{
-        #ifdef _WIN32
-        return is_key_pressed(KEY_META);
-        #endif
-        return false;
-    }
-
     // Misc
 
     void handle_input(const Ref<InputEvent> &event) override {};
@@ -224,10 +185,13 @@ public:
                     std::unordered_map<int, bool> pressed_now;
                     for (const auto &[vk, godot_key] : key_map) {
                         SHORT state = GetAsyncKeyState(vk);
+                        // Several VKs can share one Godot keycode (VK_OEM_5 / VK_OEM_102
+                        // both map to KEY_BACKSLASH), so OR the results instead of
+                        // relying on emplace() not overwriting an existing entry.
                         if ((state & 0x8000) != 0)
                             pressed_now[godot_key] = true;
-                        else
-                            pressed_now.emplace(godot_key, false);
+                        else if (pressed_now.find(godot_key) == pressed_now.end())
+                            pressed_now[godot_key] = false;
                     }
 
                     for (const auto &[godot_key, pressed] : pressed_now) {
