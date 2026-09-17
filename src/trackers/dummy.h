@@ -98,24 +98,24 @@ public:
 
     // Godot InputMap Action Detection
 
-    bool is_action_pressed(const String &action) override{
+    bool is_action_pressed(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 0);
         return Input::get_singleton()->is_action_pressed(action);
     }
 
-    bool is_action_just_pressed(const String &action) override{
+    bool is_action_just_pressed(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 1);
         return Input::get_singleton()->is_action_just_pressed(action);
     }
 
-    bool is_action_just_released(const String &action) override{
+    bool is_action_just_released(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 2);
         return Input::get_singleton()->is_action_just_released(action);
     }
     
