@@ -30,6 +30,10 @@ public:
         mouse_just_pressed_frame.clear();
         mouse_just_released_frame.clear();
 
+        joy_state.clear();
+        joy_just_pressed_frame.clear();
+        joy_just_released_frame.clear();
+
         running = true;
         key_maps->get_platform_key_mapping(key_map);
         active_layout = GetKeyboardLayout(0);

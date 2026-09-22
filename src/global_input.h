@@ -39,6 +39,25 @@ public:
     void set_use_physics_frames(bool p_use) { use_physics_frames = p_use; }
     bool get_use_physics_frames() const { return use_physics_frames; }
 
+    // Joypad stick/trigger deadzone. Single source of truth: the GDScript
+    // binding UI reads it, so "a direction that can be bound" and "a direction
+    // that triggers" can never diverge.
+    void set_joy_deadzone(float p_deadzone) { GlobalInputCommon::set_joy_deadzone_value(p_deadzone); }
+    float get_joy_deadzone() const { return GlobalInputCommon::joy_deadzone; }
+
+    // Test hook (see GlobalInputCommon::joy_debug_enabled): drives joypad state
+    // from script so the judgement chain can be regression-tested without a
+    // physical pad. Godot offers no way to register a virtual joypad, and
+    // Input.is_joy_button_pressed() reports false while no device exists.
+    void set_debug_joy_enabled(bool p_enabled) { GlobalInputCommon::joy_debug_enabled = p_enabled; }
+    bool get_debug_joy_enabled() const { return GlobalInputCommon::joy_debug_enabled; }
+    void set_debug_joy_button(int p_button, bool p_pressed) { GlobalInputCommon::joy_debug_buttons[p_button] = p_pressed; }
+    void set_debug_joy_axis(int p_axis, float p_value) { GlobalInputCommon::joy_debug_axes[p_axis] = p_value; }
+    void clear_debug_joy() {
+        GlobalInputCommon::joy_debug_buttons.clear();
+        GlobalInputCommon::joy_debug_axes.clear();
+    }
+
 
     void _process(double delta) override;
     void _physics_process(double delta) override;

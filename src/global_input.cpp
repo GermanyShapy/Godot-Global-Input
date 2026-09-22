@@ -52,6 +52,21 @@ void GlobalInput::_bind_methods() {
 
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_physics_frames"), 
                  "set_use_physics_frames", "get_use_physics_frames");
+
+    ClassDB::bind_method(D_METHOD("set_joy_deadzone", "deadzone"), &GlobalInput::set_joy_deadzone);
+    ClassDB::bind_method(D_METHOD("get_joy_deadzone"), &GlobalInput::get_joy_deadzone);
+
+    // Shared with the GDScript binding UI: a direction that can be bound always
+    // equals a direction that triggers.
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "joy_deadzone", PROPERTY_HINT_RANGE, "0.05,0.95,0.01"),
+                 "set_joy_deadzone", "get_joy_deadzone");
+
+    // Test hook, deliberately not exposed as a property.
+    ClassDB::bind_method(D_METHOD("set_debug_joy_enabled", "enabled"), &GlobalInput::set_debug_joy_enabled);
+    ClassDB::bind_method(D_METHOD("get_debug_joy_enabled"), &GlobalInput::get_debug_joy_enabled);
+    ClassDB::bind_method(D_METHOD("set_debug_joy_button", "button", "pressed"), &GlobalInput::set_debug_joy_button);
+    ClassDB::bind_method(D_METHOD("set_debug_joy_axis", "axis", "value"), &GlobalInput::set_debug_joy_axis);
+    ClassDB::bind_method(D_METHOD("clear_debug_joy"), &GlobalInput::clear_debug_joy);
 }
 
 void GlobalInput::set_backend(const String &backend_name) {
