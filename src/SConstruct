@@ -52,6 +52,14 @@ if platform.startswith("win"):
     output_dir = "bin/windows"
     os.makedirs(output_dir, exist_ok=True)
 
+    # SCons shells out through cmd.exe, which cannot use a PATH formatted for
+    # MSYS/Git-Bash. Call the toolchain by absolute path, and prepend its
+    # native-form directory so ar/ranlib resolve as well.
+    env["CXX"] = fixpath(mingw_bin_path + "/g++")
+    env["CC"] = fixpath(mingw_bin_path + "/gcc")
+    env["ENV"]["PATH"] = os.path.abspath(mingw_bin_path).replace("/", "\\") \
+        + os.pathsep + env["ENV"].get("PATH", "")
+
     lib_suffix = "windows.template_debug.x86_64" if build_type == "debug" else "windows.template_release.x86_64"
     env["SHLIBSUFFIX"] = ".dll"
 
