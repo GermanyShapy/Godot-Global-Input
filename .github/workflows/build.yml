@@ -77,6 +77,12 @@ jobs:
           scons platform=macos build=debug arch=universal -j"$(sysctl -n hw.logicalcpu)"
           scons platform=macos build=release arch=universal -j"$(sysctl -n hw.logicalcpu)"
 
+      # Godot's built-in CodeSign aborts with "Unsigned nested executable file"
+      # when the bundle holds unsigned binaries, so sign each dylib before it
+      # can be embedded. Ad-hoc needs no certificate and no Apple account.
+      - name: Ad-hoc sign macOS binaries
+        run: codesign --force --sign - src/bin/macos/*.dylib
+
       - name: Show results
         run: |
           ls -l src/bin/macos/
