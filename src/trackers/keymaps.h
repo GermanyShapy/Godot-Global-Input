@@ -139,16 +139,17 @@ public:
         #endif
     }
 
+    // The whole signature needs the guard, not just the body: HKL is a
+    // Windows type, so without it the Linux/macOS build of this header fails.
+    #ifdef _WIN32
     int translate_vk_to_keycode(int vk, HKL layout){
-        #ifdef _WIN32
         UINT mapped = MapVirtualKeyExW((UINT)vk, MAPVK_VK_TO_CHAR, layout);
         if (mapped == 0 || (mapped & 0x80000000)) return -1;
         UINT character = mapped & 0xFFFF;
         if (character < 32 || character > 126) return -1;
         return (int)character;
-        #endif
-        return -1;
     }
+    #endif
 
 };
 

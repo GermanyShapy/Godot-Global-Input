@@ -169,7 +169,14 @@ elif platform.startswith("mac"):
     env.Append(CCFLAGS=arch_flags)
     env.Append(CXXFLAGS=arch_flags)
 
-    env.Append(LINKFLAGS=arch_flags + ["-shared", "-framework", "CoreFoundation", "-framework", "ApplicationServices"])
+    env.Append(LINKFLAGS=arch_flags + [
+        "-shared",
+        # macOS ld rejects undefined symbols by default, but a GDExtension
+        # resolves godot-cpp's symbols from the host engine at load time.
+        "-undefined", "dynamic_lookup",
+        "-framework", "CoreFoundation",
+        "-framework", "ApplicationServices",
+    ])
 
 target_name = (
     f"bin/windows/GlobalInput.{lib_suffix}.dll" if platform.startswith("win")
