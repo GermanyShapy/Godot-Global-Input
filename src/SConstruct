@@ -31,8 +31,16 @@ elif platform.startswith("linux"):
     cc = "gcc"
 
 elif platform.startswith("mac"):
-    cxx = "o64-clang++"
-    cc = "o64-clang"
+    # Native clang on a macOS host (CI runners, local Macs); osxcross only when
+    # cross-compiling from Linux/Windows.
+    if host_platform.startswith("darwin"):
+        cxx = "clang++"
+        cc = "clang"
+    else:
+        cxx = "o64-clang++"
+        cc = "o64-clang"
+
+    arch = ARGUMENTS.get("arch", "universal")
 
 else:
     print(f"Unsupported target platform: {platform}")
@@ -128,7 +136,7 @@ elif platform.startswith("mac"):
     output_dir = "bin/macos"
     os.makedirs(output_dir, exist_ok=True)
 
-    lib_suffix = "macos.template_debug.x86_64" if build_type == "debug" else "macos.template_release.x86_64"
+    lib_suffix = f"macos.template_{build_type}.{arch}"
 
     env["SHLIBSUFFIX"] = ".dylib"
 
@@ -149,7 +157,19 @@ elif platform.startswith("mac"):
     ])
 
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
-    env.Append(LINKFLAGS=["-shared", "-framework", "CoreFoundation", "-framework", "ApplicationServices"])
+
+    # This file drives the compiler directly, so scons' own -arch handling is
+    # bypassed: without forwarding it explicitly a "universal" build would
+    # silently produce a host-only binary under a universal name.
+    arch_flags = (
+        ["-arch", "x86_64", "-arch", "arm64"]
+        if arch == "universal"
+        else ["-arch", arch]
+    )
+    env.Append(CCFLAGS=arch_flags)
+    env.Append(CXXFLAGS=arch_flags)
+
+    env.Append(LINKFLAGS=arch_flags + ["-shared", "-framework", "CoreFoundation", "-framework", "ApplicationServices"])
 
 target_name = (
     f"bin/windows/GlobalInput.{lib_suffix}.dll" if platform.startswith("win")

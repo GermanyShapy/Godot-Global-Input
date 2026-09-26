@@ -1,0 +1,88 @@
+name: Build GDExtension
+
+# Builds the Linux (.so) and macOS (.dylib) binaries that only the Windows DLLs
+# had been rebuilt for. Both jobs also print the artifact list so a failed run
+# can be diagnosed from the log alone.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - ci-crossplatform-build
+    paths:
+      - "src/**"
+      - ".github/workflows/build.yml"
+
+jobs:
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install SCons
+        run: python3 -m pip install --upgrade scons
+
+      - name: Build godot-cpp
+        working-directory: godot-cpp
+        run: |
+          scons platform=linux target=template_debug arch=x86_64 -j"$(nproc)"
+          scons platform=linux target=template_release arch=x86_64 -j"$(nproc)"
+
+      - name: Build GlobalInput
+        working-directory: src
+        run: |
+          scons platform=linux build=debug -j"$(nproc)"
+          scons platform=linux build=release -j"$(nproc)"
+
+      - name: Show results
+        run: |
+          ls -l src/bin/linux/
+          file src/bin/linux/*.so
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlobalInput-linux-x86_64
+          path: src/bin/linux/*.so
+          if-no-files-found: error
+
+  macos:
+    name: macOS universal
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install SCons
+        run: python3 -m pip install --upgrade scons
+
+      - name: Build godot-cpp
+        working-directory: godot-cpp
+        run: |
+          scons platform=macos target=template_debug arch=universal -j"$(sysctl -n hw.logicalcpu)"
+          scons platform=macos target=template_release arch=universal -j"$(sysctl -n hw.logicalcpu)"
+
+      - name: Build GlobalInput
+        working-directory: src
+        run: |
+          scons platform=macos build=debug arch=universal -j"$(sysctl -n hw.logicalcpu)"
+          scons platform=macos build=release arch=universal -j"$(sysctl -n hw.logicalcpu)"
+
+      - name: Show results
+        run: |
+          ls -l src/bin/macos/
+          lipo -info src/bin/macos/*.dylib
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlobalInput-macos-universal
+          path: src/bin/macos/*.dylib
+          if-no-files-found: error
