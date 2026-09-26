@@ -178,6 +178,11 @@ elif platform.startswith("mac"):
         "-framework", "ApplicationServices",
     ])
 
+# The .gdextension files reference the library by its bare name, so drop the
+# platform default prefix: scons would otherwise emit libGlobalInput.*, which
+# the extension can never find.
+env["SHLIBPREFIX"] = ""
+
 target_name = (
     f"bin/windows/GlobalInput.{lib_suffix}.dll" if platform.startswith("win")
     else f"bin/linux/GlobalInput.{lib_suffix}.so" if platform.startswith("linux")
