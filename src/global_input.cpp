@@ -20,13 +20,15 @@ void GlobalInput::_bind_methods() {
     ClassDB::bind_method(D_METHOD("is_mouse_just_pressed", "button"), &GlobalInput::is_mouse_just_pressed);
     ClassDB::bind_method(D_METHOD("is_mouse_just_released", "button"), &GlobalInput::is_mouse_just_released);
 
-    ClassDB::bind_method(D_METHOD("is_input_pressed", "event", "inclusive"), &GlobalInput::is_input_pressed, DEFVAL(false));
-    ClassDB::bind_method(D_METHOD("is_input_just_pressed", "event", "inclusive"), &GlobalInput::is_input_just_pressed, DEFVAL(false));
-    ClassDB::bind_method(D_METHOD("is_input_just_released", "event", "inclusive"), &GlobalInput::is_input_just_released, DEFVAL(false));
+    // The optional chord argument keeps every existing two-argument call
+    // working unchanged; see docs: 30-任务书/输入-按键组合chord_任务书.md.
+    ClassDB::bind_method(D_METHOD("is_input_pressed", "event", "inclusive", "chord_members"), &GlobalInput::is_input_pressed, DEFVAL(false), DEFVAL(Array()));
+    ClassDB::bind_method(D_METHOD("is_input_just_pressed", "event", "inclusive", "chord_members"), &GlobalInput::is_input_just_pressed, DEFVAL(false), DEFVAL(Array()));
+    ClassDB::bind_method(D_METHOD("is_input_just_released", "event", "inclusive", "chord_members"), &GlobalInput::is_input_just_released, DEFVAL(false), DEFVAL(Array()));
 
-    ClassDB::bind_method(D_METHOD("is_action_pressed", "action", "inclusive"), &GlobalInput::is_action_pressed, DEFVAL(false));
-    ClassDB::bind_method(D_METHOD("is_action_just_pressed", "action", "inclusive"), &GlobalInput::is_action_just_pressed, DEFVAL(false));
-    ClassDB::bind_method(D_METHOD("is_action_just_released", "action", "inclusive"), &GlobalInput::is_action_just_released, DEFVAL(false));
+    ClassDB::bind_method(D_METHOD("is_action_pressed", "action", "inclusive", "chords"), &GlobalInput::is_action_pressed, DEFVAL(false), DEFVAL(Dictionary()));
+    ClassDB::bind_method(D_METHOD("is_action_just_pressed", "action", "inclusive", "chords"), &GlobalInput::is_action_just_pressed, DEFVAL(false), DEFVAL(Dictionary()));
+    ClassDB::bind_method(D_METHOD("is_action_just_released", "action", "inclusive", "chords"), &GlobalInput::is_action_just_released, DEFVAL(false), DEFVAL(Dictionary()));
 
     ClassDB::bind_method(D_METHOD("get_keys_pressed_detailed"), &GlobalInput::get_keys_pressed_detailed);
     ClassDB::bind_method(D_METHOD("get_keys_just_pressed_detailed"), &GlobalInput::get_keys_just_pressed_detailed);
@@ -164,13 +166,13 @@ bool GlobalInput::is_mouse_pressed(int button) { return backend.is_valid() && ba
 bool GlobalInput::is_mouse_just_pressed(int button) { ensure_frame_state(); return backend.is_valid() && backend->is_mouse_just_pressed(button); }
 bool GlobalInput::is_mouse_just_released(int button) { ensure_frame_state(); return backend.is_valid() && backend->is_mouse_just_released(button); }
 
-bool GlobalInput::is_input_pressed(const Ref<InputEvent> &event, bool inclusive) { ensure_frame_state(); return backend.is_valid() && backend->is_input_pressed(event, inclusive); }
-bool GlobalInput::is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive) { ensure_frame_state(); return backend.is_valid() && backend->is_input_just_pressed(event, inclusive); }
-bool GlobalInput::is_input_just_released(const Ref<InputEvent> &event, bool inclusive) { ensure_frame_state(); return backend.is_valid() && backend->is_input_just_released(event, inclusive); }
+bool GlobalInput::is_input_pressed(const Ref<InputEvent> &event, bool inclusive, const Array &chord_members) { ensure_frame_state(); return backend.is_valid() && backend->is_input_pressed(event, inclusive, chord_members.is_empty() ? nullptr : &chord_members); }
+bool GlobalInput::is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive, const Array &chord_members) { ensure_frame_state(); return backend.is_valid() && backend->is_input_just_pressed(event, inclusive, chord_members.is_empty() ? nullptr : &chord_members); }
+bool GlobalInput::is_input_just_released(const Ref<InputEvent> &event, bool inclusive, const Array &chord_members) { ensure_frame_state(); return backend.is_valid() && backend->is_input_just_released(event, inclusive, chord_members.is_empty() ? nullptr : &chord_members); }
 
-bool GlobalInput::is_action_pressed(const String &action, bool inclusive) { ensure_frame_state(); return backend.is_valid() && backend->is_action_pressed(action, inclusive); }
-bool GlobalInput::is_action_just_pressed(const String &action, bool inclusive) { ensure_frame_state(); return backend.is_valid() && backend->is_action_just_pressed(action, inclusive); }
-bool GlobalInput::is_action_just_released(const String &action, bool inclusive) { ensure_frame_state(); return backend.is_valid() && backend->is_action_just_released(action, inclusive); }
+bool GlobalInput::is_action_pressed(const String &action, bool inclusive, const Dictionary &chords) { ensure_frame_state(); return backend.is_valid() && backend->is_action_pressed(action, inclusive, chords); }
+bool GlobalInput::is_action_just_pressed(const String &action, bool inclusive, const Dictionary &chords) { ensure_frame_state(); return backend.is_valid() && backend->is_action_just_pressed(action, inclusive, chords); }
+bool GlobalInput::is_action_just_released(const String &action, bool inclusive, const Dictionary &chords) { ensure_frame_state(); return backend.is_valid() && backend->is_action_just_released(action, inclusive, chords); }
 
 Dictionary GlobalInput::get_keys_pressed_detailed() { ensure_frame_state(); return backend.is_valid() ? backend->get_keys_pressed_detailed() : Dictionary(); }
 Dictionary GlobalInput::get_keys_just_pressed_detailed() { ensure_frame_state(); return backend.is_valid() ? backend->get_keys_just_pressed_detailed() : Dictionary(); }

@@ -15,6 +15,7 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
+#include <godot_cpp/variant/array.hpp>
 #include <unordered_map>
 #include <vector>
 #include <thread>
@@ -45,9 +46,9 @@ public:
     virtual bool is_mouse_just_pressed(int button) = 0;
     virtual bool is_mouse_just_released(int button) = 0;
 
-    virtual bool is_action_pressed(const String &action, bool inclusive = false) = 0;
-    virtual bool is_action_just_pressed(const String &action, bool inclusive = false) = 0;
-    virtual bool is_action_just_released(const String &action, bool inclusive = false) = 0;
+    virtual bool is_action_pressed(const String &action, bool inclusive = false, const Dictionary &chords = Dictionary()) = 0;
+    virtual bool is_action_just_pressed(const String &action, bool inclusive = false, const Dictionary &chords = Dictionary()) = 0;
+    virtual bool is_action_just_released(const String &action, bool inclusive = false, const Dictionary &chords = Dictionary()) = 0;
 
     virtual Dictionary get_keys_pressed_detailed() = 0;
     virtual Dictionary get_keys_just_pressed_detailed() = 0;
@@ -137,7 +138,10 @@ public:
         keys_just_pressed.clear();
         keys_just_released.clear();
         for (const auto &[key, down] : frame_keys) {
-            if (!frame_keys_prev.count(key)) keys_just_pressed[key] = true;
+            if (!frame_keys_prev.count(key)) {
+                keys_just_pressed[key] = true;
+                key_press_frame[key] = current_frame;
+            }
         }
         for (const auto &[key, down] : frame_keys_prev) {
             if (!frame_keys.count(key)) keys_just_released[key] = true;
@@ -146,7 +150,10 @@ public:
         mouse_just_pressed.clear();
         mouse_just_released.clear();
         for (const auto &[button, down] : frame_mouse) {
-            if (!frame_mouse_prev.count(button)) mouse_just_pressed[button] = true;
+            if (!frame_mouse_prev.count(button)) {
+                mouse_just_pressed[button] = true;
+                mouse_press_frame[button] = current_frame;
+            }
         }
         for (const auto &[button, down] : frame_mouse_prev) {
             if (!frame_mouse.count(button)) mouse_just_released[button] = true;
@@ -259,7 +266,22 @@ public:
 
     // Reads one slot, diffs it against the previous read and timestamps the
     // edge. Deliberately mirrors DummyGlobalInput::check_key().
+    //
+    // The first read of a slot in a frame is the one that counts; later reads of
+    // the same slot reuse it. Without that, every bound action re-reads the
+    // device, and a chord's members would be stamped at whichever call happened
+    // to touch them first (measured on a 28-sprite model: the second press of a
+    // two-member chord landed with an *older* stamp than the first, so the strict
+    // order check rejected it from the second round on).
     bool poll_joy_slot(int p_code, bool p_is_axis, bool p_positive) {
+        const int slot = joy_slot(p_code, p_is_axis, p_positive);
+        auto polled = joy_polled_frame.find(slot);
+        if (polled != joy_polled_frame.end() && polled->second == current_frame) {
+            auto cached = joy_state.find(slot);
+            return cached != joy_state.end() && cached->second;
+        }
+        joy_polled_frame[slot] = current_frame;
+
         ensure_joy_devices();
 
         bool now = false;
@@ -293,7 +315,6 @@ public:
             }
         }
 
-        const int slot = joy_slot(p_code, p_is_axis, p_positive);
         if (now != joy_state[slot]) {
             joy_state[slot] = now;
             // Stamped one frame back, exactly like the key/mouse path: the
@@ -380,28 +401,184 @@ public:
         return modifiers_contained(e);
     }
 
-    bool is_input_pressed(const Ref<InputEvent> &event, bool inclusive) {
+    // --- Chord judgement -----------------------------------------------------
+    //
+    // A chord adds `members` to the queried (primary) event: every member must
+    // be held as well. Judgement is stateless on purpose -- the caller passes
+    // the member set on every query, so two chords sharing a primary event stay
+    // independent and nothing has to be registered or cleaned up.
+    //
+    // Members are checked in their raw held state (no modifier agreement):
+    // modifier semantics belong to the chord level, where a strict chord only
+    // looks at the primary's own modifier bits.
+
+    bool member_held(const EventInfo &e) {
+        if (e.is_joy) return is_joy_pressed(e);
+        const auto &set = e.is_mouse ? frame_mouse : frame_keys;
+        return set.count(e.code) > 0;
+    }
+
+    bool member_just_pressed(const EventInfo &e) {
+        if (e.is_joy) return is_joy_just_pressed(e);
+        const auto &set = e.is_mouse ? mouse_just_pressed : keys_just_pressed;
+        return set.count(e.code) > 0;
+    }
+
+    bool member_just_released(const EventInfo &e) {
+        if (e.is_joy) return is_joy_just_released(e);
+        const auto &set = e.is_mouse ? mouse_just_released : keys_just_released;
+        return set.count(e.code) > 0;
+    }
+
+    // --- Strict: press order ------------------------------------------------
+    //
+    // Strict means "the members went down in the recorded order, primary last",
+    // so every press edge is stamped and kept -- the one-frame just_pressed
+    // sets cannot answer "which of these two went down first". Joypad stamps
+    // already live in joy_just_pressed_frame; keys and mouse get their own maps
+    // here. A frame the backend never reported leaves no entry and reads as 0
+    // (earliest), so an unknown stamp can never make a valid chord look out of
+    // order.
+    //
+    // Deliberately no bound-input universe: an unrelated key held at the same
+    // time must not break a strict chord. That is the upstream modifier rule
+    // too (only the four modifier bits are ever compared) and it keeps a held
+    // chord from flickering off whenever another sprite's key is pressed.
+
+    std::unordered_map<int, uint64_t> key_press_frame;
+    std::unordered_map<int, uint64_t> mouse_press_frame;
+
+    uint64_t press_frame_of(const EventInfo &e) {
+        if (e.is_joy) {
+            const int slot = joy_slot(e.joy_code, e.is_joy_axis, e.joy_positive);
+            auto it = joy_just_pressed_frame.find(slot);
+            return it == joy_just_pressed_frame.end() ? 0 : it->second;
+        }
+        const auto &frames = e.is_mouse ? mouse_press_frame : key_press_frame;
+        auto it = frames.find(e.code);
+        return it == frames.end() ? 0 : it->second;
+    }
+
+    // Strict keeps the upstream modifier rule: a plain key does not respond
+    // while an unrelated modifier is held. Only the primary can carry modifier
+    // bits -- recording folds a modifier into the event itself and never into a
+    // chord member. Joypad events carry no modifiers and are left alone, so a
+    // held Ctrl can never break a gamepad chord.
+    bool chord_modifiers_ok(const EventInfo &primary) {
+        if (primary.is_joy) return true;
+        return modifiers_match_state(primary);
+    }
+
+    bool chord_held(const EventInfo &primary, const Array &members, bool inclusive) {
+        // Poll every member **before** looking at the primary. A joypad slot is
+        // only read when someone asks about it, so returning early on "primary is
+        // up" freezes the members: their press/release edges and their order
+        // stamps would then depend on whether some other sprite happened to poll
+        // them, and a strict chord accepted the wrong order from the second round
+        // on (reproduced on the user's model, 2026-10-23).
+        //
+        // Equal stamps are accepted on purpose: two inputs pressed inside the
+        // same frame are indistinguishable, and rejecting that would make any
+        // fast chord fail strict.
+        uint64_t prev_stamp = 0;
+        bool members_held = true;
+        for (int i = 0; i < members.size(); i++) {
+            Ref<InputEvent> m = members[i];
+            if (!m.is_valid()) return false;
+            EventInfo mi = parse_event(m.ptr());
+            if (!mi.valid) return false;
+            const bool held = member_held(mi);
+            if (!held) {
+                members_held = false;
+                continue;  // keep polling the rest
+            }
+            if (inclusive) continue;
+            const uint64_t stamp = press_frame_of(mi);
+            if (stamp < prev_stamp) return false;
+            prev_stamp = stamp;
+        }
+
+        if (!member_held(primary)) return false;
+        if (!members_held) return false;
+        if (inclusive) return true;
+
+        if (!chord_modifiers_ok(primary)) return false;
+        return press_frame_of(primary) >= prev_stamp;
+    }
+
+    bool chord_just_pressed(const EventInfo &primary, const Array &members, bool inclusive) {
+        if (!chord_held(primary, members, inclusive)) return false;
+        // Strict: the primary has to be the member that completed the chord,
+        // which is the same thing as "modifiers first, primary last".
+        if (!inclusive) return member_just_pressed(primary);
+
+        if (member_just_pressed(primary)) return true;
+        for (int i = 0; i < members.size(); i++) {
+            Ref<InputEvent> m = members[i];
+            if (!m.is_valid()) continue;
+            EventInfo mi = parse_event(m.ptr());
+            if (mi.valid && member_just_pressed(mi)) return true;
+        }
+        return false;
+    }
+
+    bool chord_just_released(const EventInfo &primary, const Array &members, bool inclusive) {
+        (void)inclusive;  // extras never gate a release
+        if (member_just_released(primary)) {
+            for (int i = 0; i < members.size(); i++) {
+                Ref<InputEvent> m = members[i];
+                if (!m.is_valid()) return false;
+                EventInfo mi = parse_event(m.ptr());
+                if (!mi.valid || !member_held(mi)) return false;
+            }
+            return true;
+        }
+
+        for (int i = 0; i < members.size(); i++) {
+            Ref<InputEvent> m = members[i];
+            if (!m.is_valid()) continue;
+            EventInfo mi = parse_event(m.ptr());
+            if (!mi.valid || !member_just_released(mi)) continue;
+
+            if (!member_held(primary)) continue;
+            bool rest_held = true;
+            for (int j = 0; j < members.size(); j++) {
+                if (j == i) continue;
+                Ref<InputEvent> other = members[j];
+                if (!other.is_valid()) { rest_held = false; break; }
+                EventInfo oi = parse_event(other.ptr());
+                if (!oi.valid || !member_held(oi)) { rest_held = false; break; }
+            }
+            if (rest_held) return true;
+        }
+        return false;
+    }
+
+    bool is_input_pressed(const Ref<InputEvent> &event, bool inclusive, const Array *chord_members = nullptr) {
         std::lock_guard<std::recursive_mutex> lock(state_mutex);
         EventInfo e = parse_event(event.ptr());
         if (!e.valid) return false;
+        if (chord_members && !chord_members->is_empty()) return chord_held(e, *chord_members, inclusive);
         // A joypad event carries no modifiers, so the key/mouse set logic --
         // which is entirely about modifier agreement -- does not apply to it.
         if (e.is_joy) return is_joy_pressed(e);
         return check_input_sets(e, inclusive, frame_keys, frame_mouse);
     }
 
-    bool is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive) {
+    bool is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive, const Array *chord_members = nullptr) {
         std::lock_guard<std::recursive_mutex> lock(state_mutex);
         EventInfo e = parse_event(event.ptr());
         if (!e.valid) return false;
+        if (chord_members && !chord_members->is_empty()) return chord_just_pressed(e, *chord_members, inclusive);
         if (e.is_joy) return is_joy_just_pressed(e);
         return check_input_sets(e, inclusive, keys_just_pressed, mouse_just_pressed);
     }
 
-    bool is_input_just_released(const Ref<InputEvent> &event, bool inclusive) {
+    bool is_input_just_released(const Ref<InputEvent> &event, bool inclusive, const Array *chord_members = nullptr) {
         std::lock_guard<std::recursive_mutex> lock(state_mutex);
         EventInfo e = parse_event(event.ptr());
         if (!e.valid) return false;
+        if (chord_members && !chord_members->is_empty()) return chord_just_released(e, *chord_members, inclusive);
         if (e.is_joy) return is_joy_just_released(e);
 
         int event_count = 1;
@@ -435,7 +612,7 @@ public:
         return released_count >= 1 && pressed_count + released_count == event_count;
     }
 
-    bool any_action_event_matches(const String &action, bool inclusive, int check_mode) {
+    bool any_action_event_matches(const String &action, bool inclusive, int check_mode, const Dictionary &chords = Dictionary()) {
         if (!InputMap::get_singleton()) return false;
         const Array &events = get_action_events(action);
 
@@ -443,9 +620,23 @@ public:
             Ref<InputEvent> ev = events[i];
             if (!ev.is_valid()) continue;
 
-            if (check_mode == 0 && is_input_pressed(ev, inclusive)) return true;
-            if (check_mode == 1 && is_input_just_pressed(ev, inclusive)) return true;
-            if (check_mode == 2 && is_input_just_released(ev, inclusive)) return true;
+            // `chords` maps an event index to that event's member set: one
+            // action can carry several bindings, each with its own chord.
+            if (chords.is_empty()) {
+                if (check_mode == 0 && is_input_pressed(ev, inclusive)) return true;
+                if (check_mode == 1 && is_input_just_pressed(ev, inclusive)) return true;
+                if (check_mode == 2 && is_input_just_released(ev, inclusive)) return true;
+                continue;
+            }
+
+            Array members;
+            Variant entry = chords.get(i, Variant());
+            if (entry.get_type() == Variant::ARRAY) members = entry;
+            const Array *mp = members.is_empty() ? nullptr : &members;
+
+            if (check_mode == 0 && is_input_pressed(ev, inclusive, mp)) return true;
+            if (check_mode == 1 && is_input_just_pressed(ev, inclusive, mp)) return true;
+            if (check_mode == 2 && is_input_just_released(ev, inclusive, mp)) return true;
         }
         return false;
     }
@@ -482,6 +673,9 @@ public:
     static std::unordered_map<int, bool> joy_state;
     static std::unordered_map<int, uint64_t> joy_just_pressed_frame;
     static std::unordered_map<int, uint64_t> joy_just_released_frame;
+    // Frame in which each slot was last read, so one frame reads a device at most
+    // once per slot. Per instance: a backend rebuild restarts the frame counter.
+    std::unordered_map<int, uint64_t> joy_polled_frame;
 
     static Vector2 mouse_position;
     static int wheel_delta;

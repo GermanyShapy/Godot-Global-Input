@@ -84,14 +84,14 @@ public:
     bool is_mouse_just_released(int button);
 
     // Event Checks
-    bool is_input_pressed(const Ref<InputEvent> &event, bool inclusive);
-    bool is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive);
-    bool is_input_just_released(const Ref<InputEvent> &event, bool inclusive);
+    bool is_input_pressed(const Ref<InputEvent> &event, bool inclusive, const Array &chord_members);
+    bool is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive, const Array &chord_members);
+    bool is_input_just_released(const Ref<InputEvent> &event, bool inclusive, const Array &chord_members);
 
     // Actions
-    bool is_action_pressed(const String &action_name, bool inclusive);
-    bool is_action_just_pressed(const String &action_name, bool inclusive);
-    bool is_action_just_released(const String &action_name, bool inclusive);
+    bool is_action_pressed(const String &action_name, bool inclusive, const Dictionary &chords);
+    bool is_action_just_pressed(const String &action_name, bool inclusive, const Dictionary &chords);
+    bool is_action_just_released(const String &action_name, bool inclusive, const Dictionary &chords);
 
     // Get Details
     Dictionary get_keys_pressed_detailed();

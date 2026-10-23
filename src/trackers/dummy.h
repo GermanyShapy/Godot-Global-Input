@@ -102,23 +102,28 @@ public:
 
     // Godot InputMap Action Detection
 
-    bool is_action_pressed(const String &action, bool inclusive) override{
+    bool is_action_pressed(const String &action, bool inclusive, const Dictionary &chords) override{
         if (!InputMap::get_singleton()) return false;
         if (!InputMap::get_singleton()->has_action(action)) return false;
+        // A chord cannot be answered by the engine's own action state, so it
+        // always takes the event-list path.
+        if (!chords.is_empty()) return any_action_event_matches(action, inclusive, 0, chords);
         if (inclusive) return any_action_event_matches(action, inclusive, 0);
         return Input::get_singleton()->is_action_pressed(action);
     }
 
-    bool is_action_just_pressed(const String &action, bool inclusive) override{
+    bool is_action_just_pressed(const String &action, bool inclusive, const Dictionary &chords) override{
         if (!InputMap::get_singleton()) return false;
         if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (!chords.is_empty()) return any_action_event_matches(action, inclusive, 1, chords);
         if (inclusive) return any_action_event_matches(action, inclusive, 1);
         return Input::get_singleton()->is_action_just_pressed(action);
     }
 
-    bool is_action_just_released(const String &action, bool inclusive) override{
+    bool is_action_just_released(const String &action, bool inclusive, const Dictionary &chords) override{
         if (!InputMap::get_singleton()) return false;
         if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (!chords.is_empty()) return any_action_event_matches(action, inclusive, 2, chords);
         if (inclusive) return any_action_event_matches(action, inclusive, 2);
         return Input::get_singleton()->is_action_just_released(action);
     }

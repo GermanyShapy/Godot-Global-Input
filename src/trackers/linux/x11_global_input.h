@@ -232,16 +232,16 @@ public:
         return mouse_position;
     }
 
-    bool is_action_pressed(const String &action, bool inclusive) override{
-        return any_action_event_matches(action, inclusive, 0);
+    bool is_action_pressed(const String &action, bool inclusive, const Dictionary &chords) override{
+        return any_action_event_matches(action, inclusive, 0, chords);
     }
 
-    bool is_action_just_pressed(const String &action, bool inclusive) override{
-        return any_action_event_matches(action, inclusive, 1);
+    bool is_action_just_pressed(const String &action, bool inclusive, const Dictionary &chords) override{
+        return any_action_event_matches(action, inclusive, 1, chords);
     }
 
-    bool is_action_just_released(const String &action, bool inclusive) override{
-        return any_action_event_matches(action, inclusive, 2);
+    bool is_action_just_released(const String &action, bool inclusive, const Dictionary &chords) override{
+        return any_action_event_matches(action, inclusive, 2, chords);
     }
     
     // Debug Returns
