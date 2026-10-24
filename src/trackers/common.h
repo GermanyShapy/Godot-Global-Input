@@ -498,12 +498,18 @@ public:
             prev_stamp = stamp;
         }
 
-        if (!member_held(primary)) return false;
-        if (!members_held) return false;
-        if (inclusive) return true;
+	if (!member_held(primary)) return false;
+	if (!members_held) return false;
+	// Inclusive keeps the upstream rule that a binding's own modifiers have to
+	// be held -- only *extra* modifiers are tolerated. Returning true here
+	// would let "Ctrl+Shift+Alt+F+G" fire on F+G alone.
+	if (inclusive) {
+		if (primary.is_joy) return true;
+		return modifiers_contained(primary);
+	}
 
-        if (!chord_modifiers_ok(primary)) return false;
-        return press_frame_of(primary) >= prev_stamp;
+	if (!chord_modifiers_ok(primary)) return false;
+	return press_frame_of(primary) >= prev_stamp;
     }
 
     bool chord_just_pressed(const EventInfo &primary, const Array &members, bool inclusive) {
@@ -512,14 +518,44 @@ public:
         // which is the same thing as "modifiers first, primary last".
         if (!inclusive) return member_just_pressed(primary);
 
-        if (member_just_pressed(primary)) return true;
+        // Inclusive has no order requirement, so the trigger edge is the press
+        // of whichever input *completed* the combination -- the one with the
+        // latest press stamp among the members, the primary, and the primary's
+        // own modifiers. Member edges alone would miss "F+G first, then
+        // Ctrl+Shift": the modifiers are not members, so their edges would
+        // never be seen and the chord could not fire at all. Same-stamp inputs
+        // share the edge, so a fast press still fires exactly once.
+        uint64_t best = press_frame_of(primary);
+        bool edge = member_just_pressed(primary);
         for (int i = 0; i < members.size(); i++) {
             Ref<InputEvent> m = members[i];
             if (!m.is_valid()) continue;
             EventInfo mi = parse_event(m.ptr());
-            if (mi.valid && member_just_pressed(mi)) return true;
+            if (!mi.valid) continue;
+            uint64_t st = press_frame_of(mi);
+            bool jp = member_just_pressed(mi);
+            if (st > best) {
+                best = st;
+                edge = jp;
+            } else if (st == best) {
+                edge = edge || jp;
+            }
         }
-        return false;
+        const int mod_codes[4] = { KEY_CTRL, KEY_SHIFT, KEY_ALT, KEY_META };
+        const bool mod_wanted[4] = { primary.ctrl, primary.shift, primary.alt, primary.meta };
+        for (int i = 0; i < 4; i++) {
+            if (!mod_wanted[i]) continue;
+            auto it = key_press_frame.find(mod_codes[i]);
+            uint64_t st = it == key_press_frame.end() ? 0 : it->second;
+            bool jp = keys_just_pressed.count(mod_codes[i]) > 0;
+            if (st > best) {
+                best = st;
+                edge = jp;
+            } else if (st == best) {
+                edge = edge || jp;
+            }
+        }
+        return edge;
     }
 
     bool chord_just_released(const EventInfo &primary, const Array &members, bool inclusive) {
