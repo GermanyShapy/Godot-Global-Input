@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <vector>
 #include <thread>
+#include <mutex>
 
 #include "keymaps.h"
 
@@ -721,6 +722,10 @@ public:
     static std::thread hook_thread;
     std::recursive_mutex state_mutex;
 
+    // Serialises start()/stop() because hook_thread is static: stop_hook() and
+    // the backend destructor can race, and join() from two threads is UB.
+    static std::mutex lifecycle_mutex;
+
     // Cached connected-device ids, refreshed at most once per engine frame so a
     // model with many bound joypad events does not re-query the device list.
     std::vector<int> joy_devices;
@@ -753,6 +758,7 @@ inline Vector2 GlobalInputCommon::mouse_position;
 inline uint64_t GlobalInputCommon::current_frame = 1;
 inline std::atomic<bool> GlobalInputCommon::running = false;
 inline std::thread GlobalInputCommon::hook_thread;
+inline std::mutex GlobalInputCommon::lifecycle_mutex;
 
 
 #endif

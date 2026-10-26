@@ -11,6 +11,8 @@ public:
     // Start/ Stop Hook
 
     void start() {
+        std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
+
         if (running) return;
 
         if (!OS::get_singleton()) {
@@ -21,6 +23,11 @@ public:
             running = false;
             return;
         }
+
+        // poll_input() can exit on its own, leaving a joinable handle that must
+        // be consumed before a new thread is assigned to it (else terminate).
+        if (hook_thread.joinable())
+            hook_thread.join();
 
         key_state.clear();
         key_just_pressed_frame.clear();
@@ -41,12 +48,14 @@ public:
     }
 
     void stop(){
-        if (running){
-            std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            running = false;
-            if (hook_thread.joinable())
-                hook_thread.join();  
-        }
+        std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
+
+        // running is atomic, so it is cleared without state_mutex: holding that
+        // mutex across join() can hang the caller forever, since poll_input()
+        // needs the same mutex to finish the loop body it is already inside.
+        running = false;
+        if (hook_thread.joinable())
+            hook_thread.join();
     }
 
     // Polling Data

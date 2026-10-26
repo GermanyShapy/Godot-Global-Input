@@ -139,9 +139,15 @@ public:
     }
 
     void start() override {
+        std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
+
         if (running) return;
         if (!OS::get_singleton()) { running = false; return; }
         if (OS::get_singleton()->has_feature("editor_hint")){ running = false; return; }
+
+        // Consume a handle left joinable by a thread that exited on its own.
+        if (hook_thread.joinable())
+            hook_thread.join();
 
         key_state.clear();
         key_just_pressed_frame.clear();
@@ -170,7 +176,10 @@ public:
     }
 
     void stop() override{
-        if (!running) return;
+        std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
+
+        // Clear the flag outside state_mutex: poll_input() needs that mutex to
+        // leave its loop, so holding it while joining can deadlock.
         running = false;
         if (hook_thread.joinable())
             hook_thread.join();
