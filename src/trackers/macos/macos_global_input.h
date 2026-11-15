@@ -70,7 +70,17 @@ public:
 
     // Polling Data
 
-    void poll_data() override {}
+    // update_frame_state() rebuilds frame_keys from key_state, and key_state
+    // only grows when is_key_pressed() / is_key_just_*() ask about a key. A bound
+    // key that no script queries directly would therefore never reach the frame
+    // snapshot, and is_input_pressed() -- the call every binding actually uses --
+    // would answer false forever. Refresh the whole map here so this backend
+    // behaves like the event-driven ones; it holds one entry per physical key and
+    // the buttons are three, so the per-frame cost is trivial.
+    void poll_data() override {
+        for (const auto &entry : reverse_key_map) check_key(entry.first);
+        for (const auto &entry : reverse_mouse_map) check_mouse(entry.first);
+    }
 
     void increment_frame(){
         current_frame++;
